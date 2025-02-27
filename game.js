@@ -83,6 +83,11 @@ document.addEventListener("DOMContentLoaded", () => {
   let isGameOverAnimation = false;
   let gameOverOpacity = 0;
   let flashCounter = 0;
+  let showGameOverMessage = false; // New variable to control game over message display
+
+  // New game state variables for message display
+  let gameStarted = false;
+  let showStartMessage = true; // Initially show the start message
 
   // Generate random food position
   function placeFood() {
@@ -308,6 +313,8 @@ document.addEventListener("DOMContentLoaded", () => {
     isGameOverAnimation = true;
     gameOverOpacity = 0;
     flashCounter = 0;
+    gameStarted = false; // Reset game started flag
+    showStartMessage = false; // Don't show start message, will show restart message instead
 
     // Play game over sound
     gameOverSound.play();
@@ -330,12 +337,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // End animation after flashing
     if (flashCounter > 10) {
       isGameOverAnimation = false;
+      showGameOverMessage = true; // Show game over message instead of alert
       cancelAnimationFrame(animationId);
 
-      // Show game over dialog after animation completes
-      setTimeout(() => {
-        alert(`Game Over! Your score: ${score}`);
-      }, 100);
+      // Continue rendering for game over message
+      requestAnimationFrame(drawGame);
     }
   }
 
@@ -365,81 +371,110 @@ document.addEventListener("DOMContentLoaded", () => {
     // Add grid dots for easier navigation
     drawGridDots();
 
-    // Draw bonus food timer if active
-    drawBonusFoodTimer();
+    if (!showGameOverMessage) {
+      // Only draw game elements if not in game over state
+      // Draw bonus food timer if active
+      drawBonusFoodTimer();
 
-    // Update food radius for blinking effect
-    foodRadius += foodRadiusDirection;
-    if (foodRadius >= foodMaxRadius || foodRadius <= foodMinRadius) {
-      foodRadiusDirection *= -1;
-    }
-
-    // Draw food as a blinking circle with gradient
-    const foodGradient = ctx.createRadialGradient(
-      foodX * gridSize + gridSize / 2,
-      foodY * gridSize + gridSize / 2,
-      1,
-      foodX * gridSize + gridSize / 2,
-      foodY * gridSize + gridSize / 2,
-      foodRadius
-    );
-    foodGradient.addColorStop(0, "#ff0000");
-    foodGradient.addColorStop(1, "#990000");
-
-    ctx.beginPath();
-    ctx.arc(
-      foodX * gridSize + gridSize / 2,
-      foodY * gridSize + gridSize / 2,
-      foodRadius,
-      0,
-      Math.PI * 2
-    );
-    ctx.fillStyle = foodGradient;
-    ctx.fill();
-    ctx.closePath();
-
-    // Add a shine effect to the food
-    ctx.beginPath();
-    ctx.arc(
-      foodX * gridSize + gridSize / 3,
-      foodY * gridSize + gridSize / 3,
-      foodRadius / 4,
-      0,
-      Math.PI * 2
-    );
-    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-    ctx.fill();
-    ctx.closePath();
-
-    // Draw bonus food if active
-    drawBonusFood();
-
-    // Draw snake with realistic appearance
-    for (let i = 0; i < snake.length; i++) {
-      const isHead = i === 0;
-      const segment = snake[i];
-      const nextSegment = snake[i + 1] || null;
-      const prevSegment = snake[i - 1] || null;
-
-      // Choose segment color based on position
-      let fillColor = isHead
-        ? snakeColors.head
-        : i % 2 === 0
-        ? snakeColors.body
-        : snakeColors.bodyAlt;
-
-      // Draw the snake segment
-      drawSnakeSegment(segment, nextSegment, prevSegment, isHead, fillColor);
-    }
-
-    // Draw game over effect if needed
-    if (isGameOverAnimation) {
-      const flashOn = flashCounter % 2 === 0;
-      if (flashOn) {
-        ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Update food radius for blinking effect
+      foodRadius += foodRadiusDirection;
+      if (foodRadius >= foodMaxRadius || foodRadius <= foodMinRadius) {
+        foodRadiusDirection *= -1;
       }
+
+      // Draw food as a blinking circle with gradient
+      const foodGradient = ctx.createRadialGradient(
+        foodX * gridSize + gridSize / 2,
+        foodY * gridSize + gridSize / 2,
+        1,
+        foodX * gridSize + gridSize / 2,
+        foodY * gridSize + gridSize / 2,
+        foodRadius
+      );
+      foodGradient.addColorStop(0, "#ff0000");
+      foodGradient.addColorStop(1, "#990000");
+
+      ctx.beginPath();
+      ctx.arc(
+        foodX * gridSize + gridSize / 2,
+        foodY * gridSize + gridSize / 2,
+        foodRadius,
+        0,
+        Math.PI * 2
+      );
+      ctx.fillStyle = foodGradient;
+      ctx.fill();
+      ctx.closePath();
+
+      // Add a shine effect to the food
+      ctx.beginPath();
+      ctx.arc(
+        foodX * gridSize + gridSize / 3,
+        foodY * gridSize + gridSize / 3,
+        foodRadius / 4,
+        0,
+        Math.PI * 2
+      );
+      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+      ctx.fill();
+      ctx.closePath();
+
+      // Draw bonus food if active
+      drawBonusFood();
+
+      // Draw snake with realistic appearance
+      for (let i = 0; i < snake.length; i++) {
+        const isHead = i === 0;
+        const segment = snake[i];
+        const nextSegment = snake[i + 1] || null;
+        const prevSegment = snake[i - 1] || null;
+
+        // Choose segment color based on position
+        let fillColor = isHead
+          ? snakeColors.head
+          : i % 2 === 0
+          ? snakeColors.body
+          : snakeColors.bodyAlt;
+
+        // Draw the snake segment
+        drawSnakeSegment(segment, nextSegment, prevSegment, isHead, fillColor);
+      }
+
+      // Draw game over effect if needed
+      if (isGameOverAnimation) {
+        const flashOn = flashCounter % 2 === 0;
+        if (flashOn) {
+          ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+    } else {
+      // If in game over state, draw snake with reduced opacity as background
+      ctx.globalAlpha = 0.2; // Set low opacity for background elements
+
+      // Draw snake with reduced opacity
+      for (let i = 0; i < snake.length; i++) {
+        const isHead = i === 0;
+        const segment = snake[i];
+        const nextSegment = snake[i + 1] || null;
+        const prevSegment = snake[i - 1] || null;
+
+        // Choose segment color based on position
+        let fillColor = isHead
+          ? snakeColors.head
+          : i % 2 === 0
+          ? snakeColors.body
+          : snakeColors.bodyAlt;
+
+        // Draw the snake segment
+        drawSnakeSegment(segment, nextSegment, prevSegment, isHead, fillColor);
+      }
+
+      ctx.globalAlpha = 1.0; // Reset opacity for other elements
     }
+
+    // Display game messages - always draw on top
+    displayGameMessages();
   }
 
   // Draw bonus food
@@ -630,8 +665,35 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Create a start message overlay element
+  const startMessageOverlay = document.createElement("div");
+  startMessageOverlay.style.position = "absolute";
+  startMessageOverlay.style.top = "0";
+  startMessageOverlay.style.left = "0";
+  startMessageOverlay.style.width = "100%";
+  startMessageOverlay.style.height = "100%";
+  startMessageOverlay.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+  startMessageOverlay.style.display = "flex";
+  startMessageOverlay.style.justifyContent = "center";
+  startMessageOverlay.style.alignItems = "center";
+  startMessageOverlay.style.color = "white";
+  startMessageOverlay.style.fontSize = "24px";
+  startMessageOverlay.style.fontWeight = "bold";
+  startMessageOverlay.style.pointerEvents = "none"; // Allow clicking through
+  startMessageOverlay.textContent = "Press Enter to start the game";
+
+  // Add start message overlay to the game container
+  const gameContainer = document.querySelector(".game-container");
+  gameContainer.style.position = "relative"; // Ensure proper positioning
+  gameContainer.appendChild(startMessageOverlay);
+
   // Start game function
   function startGame() {
+    // Hide the start message
+    if (startMessageOverlay && startMessageOverlay.parentNode) {
+      startMessageOverlay.parentNode.removeChild(startMessageOverlay);
+    }
+
     // Reset game state with just 1 block for the snake
     snake = [{ x: 10, y: 10 }];
 
@@ -671,6 +733,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Disable button during gameplay
     startBtn.disabled = true;
+
+    gameStarted = true; // Set game started flag
+    showStartMessage = false; // Hide start message
+    showGameOverMessage = false; // Hide game over message when starting
   }
 
   // Add start button click handler
@@ -733,5 +799,39 @@ document.addEventListener("DOMContentLoaded", () => {
     timerGradient.addColorStop(1, "rgba(0, 80, 200, 0.9)");
     ctx.fillStyle = timerGradient;
     ctx.fillRect(0, 0, barWidth, barHeight);
+  }
+
+  // Function to display game messages
+  function displayGameMessages() {
+    ctx.textAlign = "center";
+
+    // Only handle game over message here - start message is handled via DOM
+    if (showGameOverMessage) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+      ctx.fillRect(0, canvas.height / 2 - 60, canvas.width, 120);
+
+      // Add a styled border
+      ctx.strokeStyle = "#ff3300";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0, canvas.height / 2 - 60, canvas.width, 120);
+
+      ctx.fillStyle = "white";
+
+      // Game over text
+      ctx.font = "bold 28px Arial";
+      ctx.fillText(
+        `Game Over! Your score: ${score}`,
+        canvas.width / 2,
+        canvas.height / 2 - 15
+      );
+
+      // Restart instruction
+      ctx.font = "bold 22px Arial";
+      ctx.fillText(
+        "Press Enter to restart the game",
+        canvas.width / 2,
+        canvas.height / 2 + 25
+      );
+    }
   }
 });
