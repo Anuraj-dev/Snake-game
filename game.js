@@ -39,6 +39,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const eatSound = new Audio();
   eatSound.src = "/sound/eat.wav";
 
+  // Add bonus food sound
+  const bonusFoodSound = new Audio();
+  bonusFoodSound.src = "/sound/bonus-food.wav";
+
   // Snake appearance settings
   const snakeColors = {
     head: "#006400", // Dark green for head
@@ -187,6 +191,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // If snake eats food
     if (Math.abs(snake[0].x - foodX) < 1 && Math.abs(snake[0].y - foodY) < 1) {
+      // Store previous score to check for milestone crossing
+      const previousScore = score;
+
       //Increase score and update display
       score += 10;
       //Play eat sound if score % 100 != 0
@@ -229,12 +236,25 @@ document.addEventListener("DOMContentLoaded", () => {
       Math.abs(snake[0].x - bonusFoodX) < 1 &&
       Math.abs(snake[0].y - bonusFoodY) < 1
     ) {
+      // Store previous score to check for milestone crossing
+      const previousScore = score;
+
       // Add points but don't grow the snake
       score += bonusFoodValue;
       scoreElement.textContent = score;
 
-      // Play a special sound for bonus food
-      eatSound.play();
+      // Check if we crossed a 100-point milestone
+      const crossedMilestone =
+        Math.floor(previousScore / 100) < Math.floor(score / 100);
+
+      // Always play bonus sound (this takes priority)
+      bonusFoodSound.play();
+
+      // Only play milestone sound if we crossed a milestone AND bonus sound isn't playing
+      // (This condition is here for future implementation - currently bonus sound will always play)
+      // if (crossedMilestone && !bonusFoodSound.playing) {
+      //   milestoneSound.play();
+      // }
 
       // Update highscore if needed
       if (score > highscore) {
@@ -686,7 +706,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Function to draw the bonus food timer bar
+  // Function to draw the bonus food timer bar (simplified to only show status)
   function drawBonusFoodTimer() {
     if (!isBonusFoodActive) return;
 
@@ -704,11 +724,5 @@ document.addEventListener("DOMContentLoaded", () => {
     timerGradient.addColorStop(1, "rgba(0, 80, 200, 0.9)");
     ctx.fillStyle = timerGradient;
     ctx.fillRect(0, 0, barWidth, barHeight);
-
-    // Draw value indicator
-    ctx.fillStyle = "white";
-    ctx.font = "bold 12px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(`+${bonusFoodValue}`, barWidth - 30, barHeight * 2.5);
   }
 });
