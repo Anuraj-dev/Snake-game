@@ -50,7 +50,7 @@ Welcome to my Snake Game! This is a classic arcade game where you control a snak
 
 ## 🔧 Customization
 
-Feel free to modify the game! Some easy customizations:
+Feel free to modify the game! Some easy customizations:-
 
 - Change colors in the CSS file
 - Adjust the game speed in the JavaScript file
