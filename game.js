@@ -57,6 +57,20 @@ document.addEventListener("DOMContentLoaded", () => {
   let foodMinRadius = 6;
   let foodMaxRadius = 10;
 
+  // Bonus food properties
+  let bonusFoodX;
+  let bonusFoodY;
+  let isBonusFoodActive = false;
+  let bonusFoodTimer = 0;
+  let bonusFoodMaxTime = 10; // 10 seconds lifetime
+  let bonusFoodMaxValue = 100; // Starting points value
+  let bonusFoodMinValue = 10; // Minimum points value
+  let bonusFoodValue = bonusFoodMaxValue; // Current points value
+  let bonusFoodSize = 30; // Starting size
+  let bonusFoodMinSize = 10; // Minimum size before disappearing
+  let bonusIntervalCounter = 0;
+  let bonusSpawnInterval = 150; // Increase spawn interval (less frequent)
+
   // Animation frame ID and interval ID
   let animationId;
   let moveIntervalId;
@@ -84,12 +98,39 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Generate random bonus food position
+  function placeBonusFood() {
+    // Don't place if already active
+    if (isBonusFoodActive) return;
+
+    bonusFoodX = Math.floor(Math.random() * (tileCount - 2)) + 1;
+    bonusFoodY = Math.floor(Math.random() * (tileCountY - 2)) + 1;
+
+    // Make sure bonus food doesn't overlap with snake or regular food
+    for (let i = 0; i < snake.length; i++) {
+      if (
+        (Math.abs(snake[i].x - bonusFoodX) < 1 &&
+          Math.abs(snake[i].y - bonusFoodY) < 1) ||
+        (Math.abs(foodX - bonusFoodX) < 1 && Math.abs(foodY - bonusFoodY) < 1)
+      ) {
+        placeBonusFood();
+        return;
+      }
+    }
+
+    isBonusFoodActive = true;
+    bonusFoodTimer = bonusFoodMaxTime;
+    bonusFoodValue = bonusFoodMaxValue; // Start with max value
+    bonusFoodSize = 12;
+  }
+
   // Simplified game loop function
   function gameLoop() {
     if (!gameRunning && !isGameOverAnimation) return;
 
     animationId = requestAnimationFrame(gameLoop);
     drawGame();
+    updateBonusFood(); // Add bonus food update
 
     // Call handleGameOverAnimation when needed
     if (isGameOverAnimation) {
@@ -118,6 +159,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     updateSnake();
     checkCollision();
+
+    // Handle bonus food spawn logic
+    bonusIntervalCounter++;
+    // Adjust spawn interval based on score
+    bonusSpawnInterval = score >= 500 ? 250 : 150;
+
+    if (bonusIntervalCounter >= bonusSpawnInterval && !isBonusFoodActive) {
+      // 15% chance to spawn on each eligible interval (reduced from 20%)
+      if (Math.random() < 0.15) {
+        placeBonusFood();
+        bonusIntervalCounter = 0;
+      }
+    }
   }
 
   // Update snake position with smoother movement
@@ -168,6 +222,35 @@ document.addEventListener("DOMContentLoaded", () => {
         clearInterval(moveIntervalId);
         moveIntervalId = setInterval(moveSnake, 1000 / speed);
       }
+    }
+    // If snake eats bonus food
+    else if (
+      isBonusFoodActive &&
+      Math.abs(snake[0].x - bonusFoodX) < 1 &&
+      Math.abs(snake[0].y - bonusFoodY) < 1
+    ) {
+      // Add points but don't grow the snake
+      score += bonusFoodValue;
+      scoreElement.textContent = score;
+
+      // Play a special sound for bonus food
+      eatSound.play();
+
+      // Update highscore if needed
+      if (score > highscore) {
+        highscore = score;
+        highscoreElement.textContent = highscore;
+        localStorage.setItem("snakeHighscore", highscore);
+
+        // Play highscore sound if this is first time beating it in this game
+        if (!highscoreBeaten) {
+          highscoreSound.play();
+          highscoreBeaten = true;
+        }
+      }
+
+      // Remove the bonus food
+      isBonusFoodActive = false;
     } else {
       // Remove tail if no food was eaten
       snake.pop();
@@ -262,6 +345,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // Add grid dots for easier navigation
     drawGridDots();
 
+    // Draw bonus food timer if active
+    drawBonusFoodTimer();
+
     // Update food radius for blinking effect
     foodRadius += foodRadiusDirection;
     if (foodRadius >= foodMaxRadius || foodRadius <= foodMinRadius) {
@@ -305,6 +391,9 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fill();
     ctx.closePath();
 
+    // Draw bonus food if active
+    drawBonusFood();
+
     // Draw snake with realistic appearance
     for (let i = 0; i < snake.length; i++) {
       const isHead = i === 0;
@@ -331,6 +420,56 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
     }
+  }
+
+  // Draw bonus food
+  function drawBonusFood() {
+    if (!isBonusFoodActive) return;
+
+    // Create gradient for an attractive appearance
+    const bonusFoodGradient = ctx.createRadialGradient(
+      bonusFoodX * gridSize + gridSize / 2,
+      bonusFoodY * gridSize + gridSize / 2,
+      1,
+      bonusFoodX * gridSize + gridSize / 2,
+      bonusFoodY * gridSize + gridSize / 2,
+      bonusFoodSize
+    );
+    bonusFoodGradient.addColorStop(0, "#ffcc00"); // Bright gold center
+    bonusFoodGradient.addColorStop(0.7, "#ff6600"); // Orange
+    bonusFoodGradient.addColorStop(1, "#ff3300"); // Red-orange edge
+
+    // Draw the bonus food
+    ctx.beginPath();
+    ctx.arc(
+      bonusFoodX * gridSize + gridSize / 2,
+      bonusFoodY * gridSize + gridSize / 2,
+      bonusFoodSize,
+      0,
+      Math.PI * 2
+    );
+    ctx.fillStyle = bonusFoodGradient;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.closePath();
+
+    // Add sparkle effect
+    const sparkleAngle = (Date.now() / 200) % (Math.PI * 2);
+    const sparkleX =
+      bonusFoodX * gridSize +
+      gridSize / 2 +
+      Math.cos(sparkleAngle) * bonusFoodSize * 0.7;
+    const sparkleY =
+      bonusFoodY * gridSize +
+      gridSize / 2 +
+      Math.sin(sparkleAngle) * bonusFoodSize * 0.7;
+    ctx.beginPath();
+    ctx.arc(sparkleX, sparkleY, bonusFoodSize / 4, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+    ctx.fill();
+    ctx.closePath();
   }
 
   // Function to draw a snake segment with proper connections
@@ -493,6 +632,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // Place first food
     placeFood();
 
+    // Reset bonus food state
+    isBonusFoodActive = false;
+    bonusIntervalCounter = 0;
+
     // Start game loop with separate animation and movement timers
     gameRunning = true;
 
@@ -515,4 +658,57 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initial draw
   drawGame();
+
+  // Update bonus food state (timer, size, and value)
+  function updateBonusFood() {
+    if (!isBonusFoodActive) return;
+
+    // Decrease timer
+    bonusFoodTimer -= 1 / 60; // Assuming 60fps
+
+    // Calculate current value based on time remaining
+    bonusFoodValue = Math.max(
+      bonusFoodMinValue,
+      Math.floor(
+        bonusFoodMinValue +
+          (bonusFoodMaxValue - bonusFoodMinValue) *
+            (bonusFoodTimer / bonusFoodMaxTime)
+      )
+    );
+
+    // Update size proportionally to remaining time
+    const timeRatio = bonusFoodTimer / bonusFoodMaxTime;
+    bonusFoodSize = bonusFoodMinSize + (12 - bonusFoodMinSize) * timeRatio;
+
+    // If timer runs out, deactivate bonus food
+    if (bonusFoodTimer <= 0) {
+      isBonusFoodActive = false;
+    }
+  }
+
+  // Function to draw the bonus food timer bar
+  function drawBonusFoodTimer() {
+    if (!isBonusFoodActive) return;
+
+    const timeRatio = bonusFoodTimer / bonusFoodMaxTime;
+    const barWidth = canvas.width * timeRatio;
+    const barHeight = 5; // Height of timer bar
+
+    // Draw background (gray) for the full bar
+    ctx.fillStyle = "rgba(200, 200, 200, 0.5)";
+    ctx.fillRect(0, 0, canvas.width, barHeight);
+
+    // Draw active timer (blue gradient)
+    const timerGradient = ctx.createLinearGradient(0, 0, barWidth, 0);
+    timerGradient.addColorStop(0, "rgba(0, 150, 255, 0.9)");
+    timerGradient.addColorStop(1, "rgba(0, 80, 200, 0.9)");
+    ctx.fillStyle = timerGradient;
+    ctx.fillRect(0, 0, barWidth, barHeight);
+
+    // Draw value indicator
+    ctx.fillStyle = "white";
+    ctx.font = "bold 12px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(`+${bonusFoodValue}`, barWidth - 30, barHeight * 2.5);
+  }
 });
