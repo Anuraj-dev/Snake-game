@@ -676,6 +676,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // Add start button click handler
   startBtn.addEventListener("click", startGame);
 
+  // Listen for the Enter key to start or restart the game
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !gameRunning) {
+      startGame();
+    }
+  });
+
   // Initial draw
   drawGame();
 
