@@ -15,12 +15,26 @@ document.addEventListener("DOMContentLoaded", () => {
   let gameRunning = false;
   let score = 0;
   let highscore = localStorage.getItem("snakeHighscore") || 0;
+  let highscoreBeaten = false;
   highscoreElement.textContent = highscore;
 
   // Snake initial position and velocity
   let snake = [{ x: 10, y: 10 }];
   let velocityX = 0;
   let velocityY = 0;
+
+  // Direction queue to handle rapid key presses
+  let directionQueue = [];
+
+  // Sound effects
+  const milestoneSound = new Audio();
+  milestoneSound.src = "/sound/milestone.wav";
+
+  const highscoreSound = new Audio();
+  highscoreSound.src = "/sound/highscore.wav";
+
+  const gameOverSound = new Audio();
+  gameOverSound.src = "/sound/game-over.wav";
 
   // Snake appearance settings
   const snakeColors = {
@@ -67,7 +81,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // FIXED: Simplified game loop function
+  // Simplified game loop function
   function gameLoop() {
     if (!gameRunning && !isGameOverAnimation) return;
 
@@ -75,9 +89,24 @@ document.addEventListener("DOMContentLoaded", () => {
     drawGame();
   }
 
-  // FIXED: Separate function to update snake movement at fixed intervals
+  // Separate function to update snake movement at fixed intervals
   function moveSnake() {
     if (!gameRunning) return;
+
+    // Process any queued direction changes
+    if (directionQueue.length > 0) {
+      const nextDirection = directionQueue.shift();
+
+      // Validate that the direction change is valid (no 180° turns)
+      if (
+        (nextDirection.x === 0 || velocityX === 0) &&
+        (nextDirection.y === 0 || velocityY === 0) &&
+        (nextDirection.x !== -velocityX || nextDirection.y !== -velocityY)
+      ) {
+        velocityX = nextDirection.x;
+        velocityY = nextDirection.y;
+      }
+    }
 
     updateSnake();
     checkCollision();
@@ -104,6 +133,17 @@ document.addEventListener("DOMContentLoaded", () => {
         highscore = score;
         highscoreElement.textContent = highscore;
         localStorage.setItem("snakeHighscore", highscore);
+
+        // Play highscore sound if this is first time beating it in this game
+        if (!highscoreBeaten) {
+          highscoreSound.play();
+          highscoreBeaten = true;
+        }
+      }
+
+      // Play milestone sound every 100 points
+      if (score % 100 === 0) {
+        milestoneSound.play();
       }
 
       placeFood();
@@ -111,6 +151,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // Increase speed slightly when score is multiple of 50
       if (score % 50 === 0 && speed < 15) {
         speed += 1;
+        // Update movement interval for new speed
+        clearInterval(moveIntervalId);
+        moveIntervalId = setInterval(moveSnake, 1000 / speed);
       }
     } else {
       // Remove tail if no food was eaten
@@ -150,8 +193,18 @@ document.addEventListener("DOMContentLoaded", () => {
     gameOverOpacity = 0;
     flashCounter = 0;
 
-    // FIXED: Clear the movement interval when game is over
+    // Play game over sound
+    gameOverSound.play();
+
+    // Clear the movement interval when game is over
     clearInterval(moveIntervalId);
+
+    // Clear direction queue
+    directionQueue = [];
+
+    // Make sure start button is visible after game over
+    startBtn.disabled = false;
+    startBtn.textContent = "Restart Game";
   }
 
   // Handle game over animation
@@ -166,8 +219,6 @@ document.addEventListener("DOMContentLoaded", () => {
       // Show game over dialog after animation completes
       setTimeout(() => {
         alert(`Game Over! Your score: ${score}`);
-        startBtn.textContent = "Restart Game";
-        startBtn.disabled = false;
       }, 100);
     }
   }
@@ -246,18 +297,6 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
-    }
-
-    // FIXED: Added debug info to verify snake position
-    if (gameRunning) {
-      ctx.fillStyle = "black";
-      ctx.font = "12px Arial";
-      ctx.fillText(
-        `Head: x=${snake[0].x.toFixed(1)}, y=${snake[0].y.toFixed(1)}`,
-        10,
-        20
-      );
-      ctx.fillText(`Velocity: x=${velocityX}, y=${velocityY}`, 10, 40);
     }
   }
 
@@ -360,81 +399,68 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.stroke();
   }
 
-  // Improved keyboard input handling with prevention of multiple presses
-  let lastKeyTime = 0;
-  const keyDelay = 50; // ms delay between key presses
-
+  // Improved keyboard input handling with direction queue
   document.addEventListener("keydown", (e) => {
     if (!gameRunning) return;
 
-    // Prevent key spamming
-    const now = Date.now();
-    if (now - lastKeyTime < keyDelay) return;
-    lastKeyTime = now;
-
-    // Get the current direction to prevent 180° turns
-    const currentDirectionX = velocityX;
-    const currentDirectionY = velocityY;
-
-    // Prevent reversing direction directly
+    // Process directional inputs
     switch (e.key) {
       case "ArrowUp":
-        if (currentDirectionY !== 1) {
-          // Not moving down
-          velocityX = 0;
-          velocityY = -1;
+        // Only queue if not already moving in opposite direction
+        if (velocityY !== 1) {
+          directionQueue.push({ x: 0, y: -1 });
           e.preventDefault();
         }
         break;
       case "ArrowDown":
-        if (currentDirectionY !== -1) {
-          // Not moving up
-          velocityX = 0;
-          velocityY = 1;
+        if (velocityY !== -1) {
+          directionQueue.push({ x: 0, y: 1 });
           e.preventDefault();
         }
         break;
       case "ArrowLeft":
-        if (currentDirectionX !== 1) {
-          // Not moving right
-          velocityX = -1;
-          velocityY = 0;
+        if (velocityX !== 1) {
+          directionQueue.push({ x: -1, y: 0 });
           e.preventDefault();
         }
         break;
       case "ArrowRight":
-        if (currentDirectionX !== -1) {
-          // Not moving left
-          velocityX = 1;
-          velocityY = 0;
+        if (velocityX !== -1) {
+          directionQueue.push({ x: 1, y: 0 });
           e.preventDefault();
         }
         break;
     }
+
+    // Limit queue size to prevent excessive inputs
+    if (directionQueue.length > 3) {
+      directionQueue = directionQueue.slice(-3);
+    }
   });
 
-  // FIXED: Start game function
+  // Start game function
   function startGame() {
-    // Reset game state
-    snake = [
-      { x: 10, y: 10 },
-      { x: 9, y: 10 },
-      { x: 8, y: 10 },
-    ];
+    // Reset game state with just 1 block for the snake
+    snake = [{ x: 10, y: 10 }];
 
-    // FIXED: Set initial direction and ensure it's applied immediately
+    // Set initial direction and ensure it's applied immediately
     velocityX = 1;
     velocityY = 0;
 
+    // Reset score and related variables
     score = 0;
     speed = 7;
+    highscoreBeaten = false;
     scoreElement.textContent = "0";
     isGameOverAnimation = false;
+
+    // Clear direction queue
+    directionQueue = [];
 
     // Place first food
     placeFood();
 
-    // FIXED: Start game loop with separate animation and movement timers
+    // Start game loop with separate animation and movement timers
     gameRunning = true;
 
     // Clear any existing timers
@@ -449,9 +475,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Disable button during gameplay
     startBtn.disabled = true;
-
-    // FIXED: Force an initial movement to ensure the snake starts moving
-    updateSnake();
   }
 
   // Add start button click handler
