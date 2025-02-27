@@ -36,6 +36,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const gameOverSound = new Audio();
   gameOverSound.src = "/sound/game-over.wav";
 
+  const eatSound = new Audio();
+  eatSound.src = "/sound/eat.wav";
+
   // Snake appearance settings
   const snakeColors = {
     head: "#006400", // Dark green for head
@@ -87,6 +90,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     animationId = requestAnimationFrame(gameLoop);
     drawGame();
+
+    // Call handleGameOverAnimation when needed
+    if (isGameOverAnimation) {
+      handleGameOverAnimation();
+    }
   }
 
   // Separate function to update snake movement at fixed intervals
@@ -125,7 +133,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // If snake eats food
     if (Math.abs(snake[0].x - foodX) < 1 && Math.abs(snake[0].y - foodY) < 1) {
+      //Increase score and update display
       score += 10;
+      //Play eat sound if score % 100 != 0
+      if (score % 100 != 0) {
+        eatSound.play();
+      }
       scoreElement.textContent = score;
 
       // Update highscore if needed
@@ -223,11 +236,31 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Draw grid dots to help with navigation
+  function drawGridDots() {
+    const dotSize = 1; // Small dot size
+    const dotColor = "rgba(0, 0, 0, 0.2)"; // Subtle dark color with low opacity
+
+    ctx.fillStyle = dotColor;
+
+    // Draw dots at grid intersections
+    for (let x = 0; x <= tileCount; x++) {
+      for (let y = 0; y <= tileCountY; y++) {
+        ctx.beginPath();
+        ctx.arc(x * gridSize, y * gridSize, dotSize, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
   // Draw game elements with enhanced visuals
   function drawGame() {
     // Clear canvas
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Add grid dots for easier navigation
+    drawGridDots();
 
     // Update food radius for blinking effect
     foodRadius += foodRadiusDirection;
