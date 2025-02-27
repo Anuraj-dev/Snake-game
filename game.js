@@ -715,7 +715,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Function to draw the bonus food timer bar (simplified to only show status)
+  // Function to draw the bonus food timer bar (show status)
   function drawBonusFoodTimer() {
     if (!isBonusFoodActive) return;
 
