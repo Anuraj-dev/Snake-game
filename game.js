@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
     isBonusFoodActive = true;
     bonusFoodTimer = bonusFoodMaxTime;
     bonusFoodValue = bonusFoodMaxValue; // Start with max value
-    bonusFoodSize = 12;
+    bonusFoodSize = 30;
   }
 
   // Simplified game loop function
@@ -686,14 +686,16 @@ document.addEventListener("DOMContentLoaded", () => {
     // Decrease timer
     bonusFoodTimer -= 1 / 60; // Assuming 60fps
 
-    // Calculate current value based on time remaining
+    // Calculate current value based on time remaining and make it a multiple of 10
+    const rawValue =
+      bonusFoodMinValue +
+      (bonusFoodMaxValue - bonusFoodMinValue) *
+        (bonusFoodTimer / bonusFoodMaxTime);
+
+    // Round to the nearest multiple of 10 and ensure it's within min/max bounds
     bonusFoodValue = Math.max(
       bonusFoodMinValue,
-      Math.floor(
-        bonusFoodMinValue +
-          (bonusFoodMaxValue - bonusFoodMinValue) *
-            (bonusFoodTimer / bonusFoodMaxTime)
-      )
+      Math.min(bonusFoodMaxValue, Math.round(rawValue / 10) * 10)
     );
 
     // Update size proportionally to remaining time
