@@ -17,8 +17,51 @@
       </div>
       <canvas id="gameCanvas" width="750" height="400"></canvas>
       <div class="controls-info">
-        <p>Use arrow keys to control the snake</p>
-        <button id="startBtn">Start Game</button>
+        <p>Use arrow keys to control the snake. Press ESC to pause.</p>
+      </div>
+
+      <!-- Menu Overlay System -->
+      <div id="menuOverlay" class="menu-overlay">
+        <div class="menu-container">
+          <h2 id="menuTitle">Snake Game Menu</h2>
+
+          <!-- Main Menu -->
+          <div id="mainMenu" class="menu-panel active">
+            <button id="newGameBtn" class="menu-btn">New Game</button>
+            <button id="continueBtn" class="menu-btn hidden">
+              Continue Game
+            </button>
+            <button id="difficultyBtn" class="menu-btn">
+              Difficulty Level
+            </button>
+            <button id="highscoreBtn" class="menu-btn">Highscore</button>
+          </div>
+
+          <!-- Difficulty Submenu -->
+          <div id="difficultyMenu" class="menu-panel">
+            <h3>Select Difficulty</h3>
+            <button id="easyBtn" class="menu-btn difficulty-btn">Easy</button>
+            <button id="normalBtn" class="menu-btn difficulty-btn">
+              Normal
+            </button>
+            <button id="hardBtn" class="menu-btn difficulty-btn">Hard</button>
+            <button id="difficultyBackBtn" class="menu-btn back-btn">
+              Back
+            </button>
+          </div>
+
+          <!-- Highscore Panel -->
+          <div id="highscoreMenu" class="menu-panel">
+            <h3>Highscore</h3>
+            <p>Current Highscore: <span id="menuHighscore">0</span></p>
+            <button id="resetHighscoreBtn" class="menu-btn warning">
+              Reset Highscore
+            </button>
+            <button id="highscoreBackBtn" class="menu-btn back-btn">
+              Back
+            </button>
+          </div>
+        </div>
       </div>
     </div>
     <script src="game.js"></script>

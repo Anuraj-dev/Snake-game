@@ -1,22 +1,50 @@
 document.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
-  const startBtn = document.getElementById("startBtn");
   const scoreElement = document.getElementById("score");
   const highscoreElement = document.getElementById("highscore");
+
+  // Menu elements
+  const menuOverlay = document.getElementById("menuOverlay");
+  const mainMenu = document.getElementById("mainMenu");
+  const difficultyMenu = document.getElementById("difficultyMenu");
+  const highscoreMenu = document.getElementById("highscoreMenu");
+  const newGameBtn = document.getElementById("newGameBtn");
+  const continueBtn = document.getElementById("continueBtn");
+  const difficultyBtn = document.getElementById("difficultyBtn");
+  const highscoreBtn = document.getElementById("highscoreBtn");
+  const easyBtn = document.getElementById("easyBtn");
+  const normalBtn = document.getElementById("normalBtn");
+  const hardBtn = document.getElementById("hardBtn");
+  const difficultyBackBtn = document.getElementById("difficultyBackBtn");
+  const resetHighscoreBtn = document.getElementById("resetHighscoreBtn");
+  const highscoreBackBtn = document.getElementById("highscoreBackBtn");
+  const menuHighscoreElement = document.getElementById("menuHighscore");
 
   // Game settings
   const gridSize = 20;
   const tileCount = canvas.width / gridSize;
   const tileCountY = canvas.height / gridSize;
-  let speed = 7;
+
+  // Difficulty settings
+  const difficulties = {
+    easy: { initialSpeed: 5, speedIncrement: 0.5, bonusFrequency: 200 },
+    normal: { initialSpeed: 7, speedIncrement: 1, bonusFrequency: 150 },
+    hard: { initialSpeed: 10, speedIncrement: 1.5, bonusFrequency: 120 },
+  };
+
+  let currentDifficulty = localStorage.getItem("snakeDifficulty") || "normal";
+  let speed = difficulties[currentDifficulty].initialSpeed;
 
   // Game state
   let gameRunning = false;
+  let isPaused = false;
+  let gameInitialized = false; // New flag to track if the game has been initialized
   let score = 0;
   let highscore = localStorage.getItem("snakeHighscore") || 0;
   let highscoreBeaten = false;
   highscoreElement.textContent = highscore;
+  menuHighscoreElement.textContent = highscore;
 
   // Snake initial position and velocity
   let snake = [{ x: 10, y: 10 }];
@@ -73,83 +101,168 @@ document.addEventListener("DOMContentLoaded", () => {
   let bonusFoodSize = 30; // Starting size
   let bonusFoodMinSize = 10; // Minimum size before disappearing
   let bonusIntervalCounter = 0;
-  let bonusSpawnInterval = 150; // Increase spawn interval (less frequent)
+  let bonusSpawnInterval = difficulties[currentDifficulty].bonusFrequency;
 
   // Animation frame ID and interval ID
   let animationId;
   let moveIntervalId;
 
+  // Delta timing variable for gameLoop
+  let lastTime = performance.now();
+
   // Game over effects
   let isGameOverAnimation = false;
   let gameOverOpacity = 0;
   let flashCounter = 0;
-  let showGameOverMessage = false; // New variable to control game over message display
+  let showGameOverMessage = false;
 
-  // New game state variables for message display
-  let gameStarted = false;
-  let showStartMessage = true; // Initially show the start message
+  // Enhanced menu handler functions
+  function showMenu() {
+    menuOverlay.classList.add("active");
+    updateDifficultySelection();
+    menuHighscoreElement.textContent = highscore;
 
-  // Generate random food position
+    // Show "Continue Game" button only if a game is in progress
+    if (gameRunning && !showGameOverMessage) {
+      continueBtn.classList.remove("hidden");
+    } else {
+      continueBtn.classList.add("hidden");
+    }
+  }
+
+  function hideMenu() {
+    menuOverlay.classList.remove("active");
+    showPanel(mainMenu);
+  }
+
+  function showPanel(panel) {
+    // Hide all panels
+    mainMenu.classList.remove("active");
+    difficultyMenu.classList.remove("active");
+    highscoreMenu.classList.remove("active");
+
+    // Show the requested panel
+    panel.classList.add("active");
+  }
+
+  // Improved pause/resume functions
+  function pauseGame() {
+    if (!gameRunning || showGameOverMessage) return;
+
+    isPaused = true;
+    clearInterval(moveIntervalId);
+    cancelAnimationFrame(animationId);
+    showMenu();
+  }
+
+  function resumeGame() {
+    if (!gameRunning || showGameOverMessage) return;
+
+    isPaused = false;
+    hideMenu();
+    lastTime = performance.now();
+    animationId = requestAnimationFrame(gameLoop);
+    moveIntervalId = setInterval(moveSnake, 1000 / speed);
+  }
+
+  function updateDifficultySelection() {
+    // Remove selected class from all difficulty buttons
+    easyBtn.classList.remove("selected");
+    normalBtn.classList.remove("selected");
+    hardBtn.classList.remove("selected");
+
+    // Add selected class to current difficulty
+    if (currentDifficulty === "easy") {
+      easyBtn.classList.add("selected");
+    } else if (currentDifficulty === "normal") {
+      normalBtn.classList.add("selected");
+    } else if (currentDifficulty === "hard") {
+      hardBtn.classList.add("selected");
+    }
+  }
+
+  function setDifficulty(difficulty) {
+    currentDifficulty = difficulty;
+    localStorage.setItem("snakeDifficulty", difficulty);
+    bonusSpawnInterval = difficulties[difficulty].bonusFrequency;
+    updateDifficultySelection();
+    showPanel(mainMenu);
+  }
+
+  function resetHighscore() {
+    if (confirm("Are you sure you want to reset the highscore?")) {
+      highscore = 0;
+      localStorage.removeItem("snakeHighscore");
+      highscoreElement.textContent = "0";
+      menuHighscoreElement.textContent = "0";
+    }
+  }
+
+  // Generate random food position without recursion
   function placeFood() {
-    foodX = Math.floor(Math.random() * (tileCount - 2)) + 1;
-    foodY = Math.floor(Math.random() * (tileCountY - 2)) + 1;
-
-    // More thorough check to ensure food doesn't spawn on snake
-    for (let i = 0; i < snake.length; i++) {
-      // Check the exact position and surrounding positions for better safety
-      if (
-        Math.abs(snake[i].x - foodX) <= 1 &&
-        Math.abs(snake[i].y - foodY) <= 1
-      ) {
-        placeFood();
-        return;
+    let valid = false;
+    while (!valid) {
+      foodX = Math.floor(Math.random() * (tileCount - 2)) + 1;
+      foodY = Math.floor(Math.random() * (tileCountY - 2)) + 1;
+      valid = true;
+      for (let i = 0; i < snake.length; i++) {
+        if (
+          Math.abs(snake[i].x - foodX) <= 1 &&
+          Math.abs(snake[i].y - foodY) <= 1
+        ) {
+          valid = false;
+          break;
+        }
       }
     }
   }
 
-  // Generate random bonus food position
+  // Generate random bonus food position without recursion
   function placeBonusFood() {
-    // Don't place if already active
     if (isBonusFoodActive) return;
-
-    bonusFoodX = Math.floor(Math.random() * (tileCount - 2)) + 1;
-    bonusFoodY = Math.floor(Math.random() * (tileCountY - 2)) + 1;
-
-    // Make sure bonus food doesn't overlap with snake or regular food
-    for (let i = 0; i < snake.length; i++) {
-      if (
-        (Math.abs(snake[i].x - bonusFoodX) < 1 &&
-          Math.abs(snake[i].y - bonusFoodY) < 1) ||
-        (Math.abs(foodX - bonusFoodX) < 1 && Math.abs(foodY - bonusFoodY) < 1)
-      ) {
-        placeBonusFood();
-        return;
+    let valid = false;
+    while (!valid) {
+      bonusFoodX = Math.floor(Math.random() * (tileCount - 2)) + 1;
+      bonusFoodY = Math.floor(Math.random() * (tileCountY - 2)) + 1;
+      valid = true;
+      for (let i = 0; i < snake.length; i++) {
+        if (
+          (Math.abs(snake[i].x - bonusFoodX) < 1 &&
+            Math.abs(snake[i].y - bonusFoodY) < 1) ||
+          (Math.abs(foodX - bonusFoodX) < 1 && Math.abs(foodY - bonusFoodY) < 1)
+        ) {
+          valid = false;
+          break;
+        }
       }
     }
-
     isBonusFoodActive = true;
     bonusFoodTimer = bonusFoodMaxTime;
     bonusFoodValue = bonusFoodMaxValue; // Start with max value
     bonusFoodSize = 30;
   }
 
-  // Simplified game loop function
-  function gameLoop() {
-    if (!gameRunning && !isGameOverAnimation) return;
+  // Simplified game loop function using delta timing
+  function gameLoop(currentTime) {
+    const deltaTime = (currentTime - lastTime) / 1000; // seconds
+    lastTime = currentTime;
+
+    if (!gameRunning || isPaused || isGameOverAnimation) {
+      if (isGameOverAnimation) {
+        handleGameOverAnimation();
+        drawGame();
+      }
+      return;
+    }
 
     animationId = requestAnimationFrame(gameLoop);
     drawGame();
-    updateBonusFood(); // Add bonus food update
-
-    // Call handleGameOverAnimation when needed
-    if (isGameOverAnimation) {
-      handleGameOverAnimation();
-    }
+    updateBonusFood(deltaTime);
   }
 
   // Separate function to update snake movement at fixed intervals
   function moveSnake() {
-    if (!gameRunning) return;
+    if (!gameRunning || isPaused) return;
 
     // Process any queued direction changes
     if (directionQueue.length > 0) {
@@ -171,11 +284,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Handle bonus food spawn logic
     bonusIntervalCounter++;
-    // Adjust spawn interval based on score
-    bonusSpawnInterval = score >= 500 ? 250 : 150;
 
     if (bonusIntervalCounter >= bonusSpawnInterval && !isBonusFoodActive) {
-      // 15% chance to spawn on each eligible interval (reduced from 20%)
       if (Math.random() < 0.15) {
         placeBonusFood();
         bonusIntervalCounter = 0;
@@ -185,106 +295,75 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Update snake position with smoother movement
   function updateSnake() {
-    // Create new head based on current direction
     const newHead = {
       x: snake[0].x + velocityX,
       y: snake[0].y + velocityY,
     };
 
-    // Add new head to beginning of snake array
     snake.unshift(newHead);
 
-    // If snake eats food
     if (Math.abs(snake[0].x - foodX) < 1 && Math.abs(snake[0].y - foodY) < 1) {
-      // Store previous score to check for milestone crossing
       const previousScore = score;
-
-      //Increase score and update display
       score += 10;
-      //Play eat sound if score % 100 != 0
       if (score % 100 != 0) {
         eatSound.play();
       }
       scoreElement.textContent = score;
 
-      // Update highscore if needed
       if (score > highscore) {
         highscore = score;
         highscoreElement.textContent = highscore;
+        menuHighscoreElement.textContent = highscore;
         localStorage.setItem("snakeHighscore", highscore);
-
-        // Play highscore sound if this is first time beating it in this game
         if (!highscoreBeaten) {
           highscoreSound.play();
           highscoreBeaten = true;
         }
       }
 
-      // Play milestone sound every 100 points
       if (score % 100 === 0) {
         milestoneSound.play();
       }
 
       placeFood();
 
-      // Increase speed slightly when score is multiple of 50
       if (score % 50 === 0 && speed < 15) {
-        speed += 1;
-        // Update movement interval for new speed
+        speed += difficulties[currentDifficulty].speedIncrement;
         clearInterval(moveIntervalId);
         moveIntervalId = setInterval(moveSnake, 1000 / speed);
       }
-    }
-    // If snake eats bonus food
-    else if (
+    } else if (
       isBonusFoodActive &&
       Math.abs(snake[0].x - bonusFoodX) < 1 &&
       Math.abs(snake[0].y - bonusFoodY) < 1
     ) {
-      // Store previous score to check for milestone crossing
       const previousScore = score;
-
-      // Add points but don't grow the snake
       score += bonusFoodValue;
       scoreElement.textContent = score;
 
-      // Check if we crossed a 100-point milestone
       const crossedMilestone =
         Math.floor(previousScore / 100) < Math.floor(score / 100);
 
-      // Always play bonus sound (this takes priority)
       bonusFoodSound.play();
 
-      // Only play milestone sound if we crossed a milestone AND bonus sound isn't playing
-      // (This condition is here for future implementation - currently bonus sound will always play)
-      // if (crossedMilestone && !bonusFoodSound.playing) {
-      //   milestoneSound.play();
-      // }
-
-      // Update highscore if needed
       if (score > highscore) {
         highscore = score;
         highscoreElement.textContent = highscore;
+        menuHighscoreElement.textContent = highscore;
         localStorage.setItem("snakeHighscore", highscore);
-
-        // Play highscore sound if this is first time beating it in this game
         if (!highscoreBeaten) {
           highscoreSound.play();
           highscoreBeaten = true;
         }
       }
-
-      // Remove the bonus food
       isBonusFoodActive = false;
     } else {
-      // Remove tail if no food was eaten
       snake.pop();
     }
   }
 
   // Improved collision detection
   function checkCollision() {
-    // Wall collision with more precise bounds checking
     if (
       snake[0].x < 0 ||
       snake[0].x >= tileCount ||
@@ -295,7 +374,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Self collision with improved detection
     for (let i = 1; i < snake.length; i++) {
       if (
         Math.abs(snake[i].x - snake[0].x) < 0.5 &&
@@ -313,46 +391,34 @@ document.addEventListener("DOMContentLoaded", () => {
     isGameOverAnimation = true;
     gameOverOpacity = 0;
     flashCounter = 0;
-    gameStarted = false; // Reset game started flag
-    showStartMessage = false; // Don't show start message, will show restart message instead
-
-    // Play game over sound
+    showGameOverMessage = false;
     gameOverSound.play();
-
-    // Clear the movement interval when game is over
     clearInterval(moveIntervalId);
-
-    // Clear direction queue
     directionQueue = [];
 
-    // Make sure start button is visible after game over
-    startBtn.disabled = false;
-    startBtn.textContent = "Restart Game";
+    // Show the menu after a short delay to allow the game over animation
+    setTimeout(() => {
+      showGameOverMessage = true;
+      showMenu();
+    }, 1500);
   }
 
   // Handle game over animation
   function handleGameOverAnimation() {
     flashCounter++;
-
-    // End animation after flashing
     if (flashCounter > 10) {
       isGameOverAnimation = false;
-      showGameOverMessage = true; // Show game over message instead of alert
+      showGameOverMessage = true;
       cancelAnimationFrame(animationId);
-
-      // Continue rendering for game over message
       requestAnimationFrame(drawGame);
     }
   }
 
   // Draw grid dots to help with navigation
   function drawGridDots() {
-    const dotSize = 1; // Small dot size
-    const dotColor = "rgba(0, 0, 0, 0.2)"; // Subtle dark color with low opacity
-
+    const dotSize = 1;
+    const dotColor = "rgba(0, 0, 0, 0.2)";
     ctx.fillStyle = dotColor;
-
-    // Draw dots at grid intersections
     for (let x = 0; x <= tileCount; x++) {
       for (let y = 0; y <= tileCountY; y++) {
         ctx.beginPath();
@@ -364,25 +430,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Draw game elements with enhanced visuals
   function drawGame() {
-    // Clear canvas
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Add grid dots for easier navigation
     drawGridDots();
 
     if (!showGameOverMessage) {
-      // Only draw game elements if not in game over state
-      // Draw bonus food timer if active
       drawBonusFoodTimer();
 
-      // Update food radius for blinking effect
       foodRadius += foodRadiusDirection;
       if (foodRadius >= foodMaxRadius || foodRadius <= foodMinRadius) {
         foodRadiusDirection *= -1;
       }
 
-      // Draw food as a blinking circle with gradient
       const foodGradient = ctx.createRadialGradient(
         foodX * gridSize + gridSize / 2,
         foodY * gridSize + gridSize / 2,
@@ -406,7 +465,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.fill();
       ctx.closePath();
 
-      // Add a shine effect to the food
       ctx.beginPath();
       ctx.arc(
         foodX * gridSize + gridSize / 3,
@@ -419,28 +477,21 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.fill();
       ctx.closePath();
 
-      // Draw bonus food if active
       drawBonusFood();
 
-      // Draw snake with realistic appearance
       for (let i = 0; i < snake.length; i++) {
         const isHead = i === 0;
         const segment = snake[i];
         const nextSegment = snake[i + 1] || null;
         const prevSegment = snake[i - 1] || null;
-
-        // Choose segment color based on position
         let fillColor = isHead
           ? snakeColors.head
           : i % 2 === 0
           ? snakeColors.body
           : snakeColors.bodyAlt;
-
-        // Draw the snake segment
         drawSnakeSegment(segment, nextSegment, prevSegment, isHead, fillColor);
       }
 
-      // Draw game over effect if needed
       if (isGameOverAnimation) {
         const flashOn = flashCounter % 2 === 0;
         if (flashOn) {
@@ -449,39 +500,27 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     } else {
-      // If in game over state, draw snake with reduced opacity as background
-      ctx.globalAlpha = 0.2; // Set low opacity for background elements
-
-      // Draw snake with reduced opacity
+      ctx.globalAlpha = 0.2;
       for (let i = 0; i < snake.length; i++) {
         const isHead = i === 0;
         const segment = snake[i];
         const nextSegment = snake[i + 1] || null;
         const prevSegment = snake[i - 1] || null;
-
-        // Choose segment color based on position
         let fillColor = isHead
           ? snakeColors.head
           : i % 2 === 0
           ? snakeColors.body
           : snakeColors.bodyAlt;
-
-        // Draw the snake segment
         drawSnakeSegment(segment, nextSegment, prevSegment, isHead, fillColor);
       }
-
-      ctx.globalAlpha = 1.0; // Reset opacity for other elements
+      ctx.globalAlpha = 1.0;
     }
-
-    // Display game messages - always draw on top
     displayGameMessages();
   }
 
   // Draw bonus food
   function drawBonusFood() {
     if (!isBonusFoodActive) return;
-
-    // Create gradient for an attractive appearance
     const bonusFoodGradient = ctx.createRadialGradient(
       bonusFoodX * gridSize + gridSize / 2,
       bonusFoodY * gridSize + gridSize / 2,
@@ -490,11 +529,10 @@ document.addEventListener("DOMContentLoaded", () => {
       bonusFoodY * gridSize + gridSize / 2,
       bonusFoodSize
     );
-    bonusFoodGradient.addColorStop(0, "#ffcc00"); // Bright gold center
-    bonusFoodGradient.addColorStop(0.7, "#ff6600"); // Orange
-    bonusFoodGradient.addColorStop(1, "#ff3300"); // Red-orange edge
+    bonusFoodGradient.addColorStop(0, "#ffcc00");
+    bonusFoodGradient.addColorStop(0.7, "#ff6600");
+    bonusFoodGradient.addColorStop(1, "#ff3300");
 
-    // Draw the bonus food
     ctx.beginPath();
     ctx.arc(
       bonusFoodX * gridSize + gridSize / 2,
@@ -510,7 +548,6 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.stroke();
     ctx.closePath();
 
-    // Add sparkle effect
     const sparkleAngle = (Date.now() / 200) % (Math.PI * 2);
     const sparkleX =
       bonusFoodX * gridSize +
@@ -543,46 +580,38 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fillStyle = fillColor;
 
     if (isHead) {
-      // Draw a rounded rectangle for the head
       roundedRect(x, y, size, size, radius);
 
-      // Add eyes to the head
       const eyeSize = gridSize / 5;
       const eyeOffset = gridSize / 4;
 
-      // Determine eye positions based on direction
       let leftEyeX = x + eyeOffset;
       let leftEyeY = y + eyeOffset;
       let rightEyeX = x + size - eyeOffset * 1.5;
       let rightEyeY = y + eyeOffset;
 
       if (velocityY === -1) {
-        // Moving up
         leftEyeX = x + eyeOffset;
         leftEyeY = y + eyeOffset;
         rightEyeX = x + size - eyeOffset * 1.5;
         rightEyeY = y + eyeOffset;
       } else if (velocityY === 1) {
-        // Moving down
         leftEyeX = x + eyeOffset;
         leftEyeY = y + size - eyeOffset * 1.5;
         rightEyeX = x + size - eyeOffset * 1.5;
         rightEyeY = y + size - eyeOffset * 1.5;
       } else if (velocityX === -1) {
-        // Moving left
         leftEyeX = x + eyeOffset;
         leftEyeY = y + eyeOffset;
         rightEyeX = x + eyeOffset;
         rightEyeY = y + size - eyeOffset * 1.5;
       } else {
-        // Moving right or default
         leftEyeX = x + size - eyeOffset * 1.5;
         leftEyeY = y + eyeOffset;
         rightEyeX = x + size - eyeOffset * 1.5;
         rightEyeY = y + size - eyeOffset * 1.5;
       }
 
-      // Draw eyes
       ctx.fillStyle = snakeColors.eye;
       ctx.beginPath();
       ctx.arc(leftEyeX, leftEyeY, eyeSize, 0, Math.PI * 2);
@@ -591,7 +620,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.arc(rightEyeX, rightEyeY, eyeSize, 0, Math.PI * 2);
       ctx.fill();
 
-      // Draw pupils
       ctx.fillStyle = snakeColors.pupil;
       ctx.beginPath();
       ctx.arc(leftEyeX, leftEyeY, eyeSize / 2, 0, Math.PI * 2);
@@ -600,7 +628,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.arc(rightEyeX, rightEyeY, eyeSize / 2, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      // Draw body segment with rounded corners
       roundedRect(x, y, size, size, radius);
     }
   }
@@ -620,20 +647,38 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.closePath();
     ctx.fill();
 
-    // Add outline
     ctx.strokeStyle = snakeColors.outline;
     ctx.lineWidth = 1;
     ctx.stroke();
   }
 
-  // Improved keyboard input handling with direction queue
+  // Merged keyboard input handling for direction, pausing, and restarting
   document.addEventListener("keydown", (e) => {
-    if (!gameRunning) return;
+    // ESC key for pausing/resuming
+    if (e.key === "Escape" || e.key === "Esc") {
+      if (gameRunning) {
+        if (isPaused) {
+          resumeGame();
+        } else {
+          pauseGame();
+        }
+      }
+      e.preventDefault();
+      return;
+    }
 
-    // Process directional inputs
+    // Enter key for restarting after game over
+    if (e.key === "Enter" && showGameOverMessage) {
+      hideMenu();
+      startGame();
+      return;
+    }
+
+    // If game is paused or not running, don't process movement keys
+    if (!gameRunning || isPaused) return;
+
     switch (e.key) {
       case "ArrowUp":
-        // Only queue if not already moving in opposite direction
         if (velocityY !== 1) {
           directionQueue.push({ x: 0, y: -1 });
           e.preventDefault();
@@ -658,124 +703,64 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         break;
     }
-
-    // Limit queue size to prevent excessive inputs
     if (directionQueue.length > 3) {
       directionQueue = directionQueue.slice(-3);
     }
   });
 
-  // Create a start message overlay element
-  const startMessageOverlay = document.createElement("div");
-  startMessageOverlay.style.position = "absolute";
-  startMessageOverlay.style.top = "0";
-  startMessageOverlay.style.left = "0";
-  startMessageOverlay.style.width = "100%";
-  startMessageOverlay.style.height = "100%";
-  startMessageOverlay.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
-  startMessageOverlay.style.display = "flex";
-  startMessageOverlay.style.justifyContent = "center";
-  startMessageOverlay.style.alignItems = "center";
-  startMessageOverlay.style.color = "white";
-  startMessageOverlay.style.fontSize = "24px";
-  startMessageOverlay.style.fontWeight = "bold";
-  startMessageOverlay.style.pointerEvents = "none"; // Allow clicking through
-  startMessageOverlay.textContent = "Press Enter to start the game";
-
-  // Add start message overlay to the game container
-  const gameContainer = document.querySelector(".game-container");
-  gameContainer.style.position = "relative"; // Ensure proper positioning
-  gameContainer.appendChild(startMessageOverlay);
-
-  // Start game function
+  // Improved start game function
   function startGame() {
-    // Hide the start message
-    if (startMessageOverlay && startMessageOverlay.parentNode) {
-      startMessageOverlay.parentNode.removeChild(startMessageOverlay);
+    // Initialize food position if not already done
+    if (!gameInitialized) {
+      placeFood();
+      gameInitialized = true;
     }
 
-    // Reset game state with just 1 block for the snake
     snake = [{ x: 10, y: 10 }];
-
-    // Set initial direction and ensure it's applied immediately
     velocityX = 1;
     velocityY = 0;
-
-    // Reset score and related variables
     score = 0;
-    speed = 7;
+    speed = difficulties[currentDifficulty].initialSpeed;
     highscoreBeaten = false;
     scoreElement.textContent = "0";
     isGameOverAnimation = false;
-
-    // Clear direction queue
+    showGameOverMessage = false;
     directionQueue = [];
-
-    // Place first food
-    placeFood();
-
-    // Reset bonus food state
     isBonusFoodActive = false;
     bonusIntervalCounter = 0;
 
-    // Start game loop with separate animation and movement timers
-    gameRunning = true;
-
-    // Clear any existing timers
+    // Clear any existing game loops
     cancelAnimationFrame(animationId);
     clearInterval(moveIntervalId);
 
-    // Start the rendering loop (for smooth visuals)
+    // Start new game loops
+    gameRunning = true;
+    isPaused = false;
+    lastTime = performance.now();
     animationId = requestAnimationFrame(gameLoop);
-
-    // Start the movement update interval (for consistent game speed)
     moveIntervalId = setInterval(moveSnake, 1000 / speed);
 
-    // Disable button during gameplay
-    startBtn.disabled = true;
-
-    gameStarted = true; // Set game started flag
-    showStartMessage = false; // Hide start message
-    showGameOverMessage = false; // Hide game over message when starting
+    // Hide menu when game starts
+    hideMenu();
   }
-
-  // Add start button click handler
-  startBtn.addEventListener("click", startGame);
-
-  // Listen for the Enter key to start or restart the game
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !gameRunning) {
-      startGame();
-    }
-  });
 
   // Initial draw
   drawGame();
 
-  // Update bonus food state (timer, size, and value)
-  function updateBonusFood() {
+  // Update bonus food state with delta timing
+  function updateBonusFood(deltaTime) {
     if (!isBonusFoodActive) return;
-
-    // Decrease timer
-    bonusFoodTimer -= 1 / 60; // Assuming 60fps
-
-    // Calculate current value based on time remaining and make it a multiple of 10
+    bonusFoodTimer -= deltaTime;
     const rawValue =
       bonusFoodMinValue +
       (bonusFoodMaxValue - bonusFoodMinValue) *
         (bonusFoodTimer / bonusFoodMaxTime);
-
-    // Round to the nearest multiple of 10 and ensure it's within min/max bounds
     bonusFoodValue = Math.max(
       bonusFoodMinValue,
       Math.min(bonusFoodMaxValue, Math.round(rawValue / 10) * 10)
     );
-
-    // Update size proportionally to remaining time
     const timeRatio = bonusFoodTimer / bonusFoodMaxTime;
     bonusFoodSize = bonusFoodMinSize + (12 - bonusFoodMinSize) * timeRatio;
-
-    // If timer runs out, deactivate bonus food
     if (bonusFoodTimer <= 0) {
       isBonusFoodActive = false;
     }
@@ -784,16 +769,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // Function to draw the bonus food timer bar (show status)
   function drawBonusFoodTimer() {
     if (!isBonusFoodActive) return;
-
     const timeRatio = bonusFoodTimer / bonusFoodMaxTime;
     const barWidth = canvas.width * timeRatio;
-    const barHeight = 5; // Height of timer bar
-
-    // Draw background (gray) for the full bar
+    const barHeight = 5;
     ctx.fillStyle = "rgba(200, 200, 200, 0.5)";
     ctx.fillRect(0, 0, canvas.width, barHeight);
-
-    // Draw active timer (blue gradient)
     const timerGradient = ctx.createLinearGradient(0, 0, barWidth, 0);
     timerGradient.addColorStop(0, "rgba(0, 150, 255, 0.9)");
     timerGradient.addColorStop(1, "rgba(0, 80, 200, 0.9)");
@@ -804,28 +784,19 @@ document.addEventListener("DOMContentLoaded", () => {
   // Function to display game messages
   function displayGameMessages() {
     ctx.textAlign = "center";
-
-    // Only handle game over message here - start message is handled via DOM
     if (showGameOverMessage) {
       ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
       ctx.fillRect(0, canvas.height / 2 - 60, canvas.width, 120);
-
-      // Add a styled border
       ctx.strokeStyle = "#ff3300";
       ctx.lineWidth = 2;
       ctx.strokeRect(0, canvas.height / 2 - 60, canvas.width, 120);
-
       ctx.fillStyle = "white";
-
-      // Game over text
       ctx.font = "bold 28px Arial";
       ctx.fillText(
         `Game Over! Your score: ${score}`,
         canvas.width / 2,
         canvas.height / 2 - 15
       );
-
-      // Restart instruction
       ctx.font = "bold 22px Arial";
       ctx.fillText(
         "Press Enter to restart the game",
@@ -834,4 +805,68 @@ document.addEventListener("DOMContentLoaded", () => {
       );
     }
   }
+
+  // Event listeners for menu buttons
+  newGameBtn.addEventListener("click", startGame);
+
+  continueBtn.addEventListener("click", resumeGame);
+
+  difficultyBtn.addEventListener("click", () => {
+    showPanel(difficultyMenu);
+  });
+
+  highscoreBtn.addEventListener("click", () => {
+    showPanel(highscoreMenu);
+  });
+
+  easyBtn.addEventListener("click", () => {
+    setDifficulty("easy");
+  });
+
+  normalBtn.addEventListener("click", () => {
+    setDifficulty("normal");
+  });
+
+  hardBtn.addEventListener("click", () => {
+    setDifficulty("hard");
+  });
+
+  difficultyBackBtn.addEventListener("click", () => {
+    showPanel(mainMenu);
+  });
+
+  resetHighscoreBtn.addEventListener("click", resetHighscore);
+
+  highscoreBackBtn.addEventListener("click", () => {
+    showPanel(mainMenu);
+  });
+
+  // Make menu overlay active by default to ensure it shows
+  menuOverlay.classList.add("active");
+
+  // Ensure initial menu display is working
+  function showMenu() {
+    menuOverlay.classList.add("active");
+    updateDifficultySelection();
+    menuHighscoreElement.textContent = highscore;
+
+    // Show "Continue Game" button only if a game is in progress
+    if (gameRunning && !showGameOverMessage) {
+      continueBtn.classList.remove("hidden");
+    } else {
+      continueBtn.classList.add("hidden");
+    }
+  }
+
+  // Draw game board initially so it's not blank
+  drawGame();
+
+  // Force food placement for the initial draw
+  if (!gameInitialized) {
+    placeFood();
+    gameInitialized = true;
+  }
+
+  // Make absolutely sure the menu shows on startup by running at the very end of initialization
+  showMenu();
 });
