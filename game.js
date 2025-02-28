@@ -561,10 +561,10 @@ document.addEventListener("DOMContentLoaded", () => {
       // Draw final state
       drawGame();
 
-      // Show menu with game over message
-      setTimeout(() => {
-        showMenu();
-      }, 200);
+      // // Show menu with game over message  (No need to show menu again: Future Raja)
+      // setTimeout(() => {
+      //   showMenu();
+      // }, 100);
 
       console.log("Game over animation complete");
     }
