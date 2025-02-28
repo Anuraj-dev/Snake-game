@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const difficulties = {
     easy: { initialSpeed: 5, speedIncrement: 0.5, bonusFrequency: 150 },
     normal: { initialSpeed: 7, speedIncrement: 1, bonusFrequency: 180 },
-    hard: { initialSpeed: 10, speedIncrement: 1.5, bonusFrequency: 220 }, // Increased from 120 to 200
+    hard: { initialSpeed: 10, speedIncrement: 1.5, bonusFrequency: 220 },
   };
 
   let currentDifficulty = localStorage.getItem("snakeDifficulty") || "normal";
