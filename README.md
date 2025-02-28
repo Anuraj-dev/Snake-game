@@ -1,4 +1,4 @@
-# 🐍 Enhanced Snake Game
+# 🐍 Snake Game
 
 ## 📖 Introduction
 
