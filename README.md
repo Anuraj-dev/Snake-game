@@ -2,7 +2,7 @@
 
 ## 📖 Introduction
 
-Welcome to my upgraded Snake Game! This modern take on the classic arcade game features multiple difficulty levels, bonus food, and visual effects. Control a snake to eat food, grow longer, and chase high scores while avoiding collisions with walls or yourself.
+Welcome to my Snake Game! This modern take on the classic arcade game features multiple difficulty levels, bonus food, and visual effects. Control a snake to eat food, grow longer, and chase high scores while avoiding collisions with walls or yourself.
 
 ## 🎮 Game Features
 
@@ -66,4 +66,4 @@ Some parts you might want to customize:
 - Game over animation duration and intensity
 - Canvas size for varying the play area
 
-Enjoy the enhanced Snake gaming experience! 🎮
+Enjoy the Snake gaming experience! 🎮
