@@ -25,7 +25,7 @@ Welcome to my Snake Game! This modern take on the classic arcade game features m
 1. **Clone or download the repository**
 
    ```
-   git clone https://github.com/Anuraj-dev/snake-game.git
+   git clone https://github.com/Anuraj-dev/Snake-game.git
    ```
 
    Or simply download the ZIP file and extract it.
